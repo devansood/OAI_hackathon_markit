@@ -386,7 +386,18 @@ async def chat_send(req: ChatSendRequest) -> Dict[str, Any]:
 
     # Append assistant turn
     hist.append({"role": "assistant", "content": reply})
-    return {"ok": True, "reply": reply, "meta": meta}
+    # Surface optional image fields if the agent generated one
+    resp: Dict[str, Any] = {"ok": True, "reply": reply, "meta": meta}
+    try:
+        img_url = meta.get("image_url") if isinstance(meta, dict) else None
+        caption = meta.get("caption") if isinstance(meta, dict) else None
+        if img_url:
+            resp["image_url"] = img_url
+            if caption:
+                resp["caption"] = str(caption)
+    except Exception:
+        pass
+    return resp
 
 
 @app.get("/api/chat/status")
