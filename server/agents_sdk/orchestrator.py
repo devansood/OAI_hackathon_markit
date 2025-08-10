@@ -177,8 +177,17 @@ async def chat_respond(email: str, history: List[ChatTurn]) -> Tuple[str, Dict[s
         try:
             start_tag = "<IMAGE_PROMPT>"
             end_tag = "</IMAGE_PROMPT>"
-            if start_tag in final and end_tag in final:
-                im_prompt = final.split(start_tag, 1)[1].split(end_tag, 1)[0].strip()
+            end_tag_alt = "<\\/IMAGE_PROMPT>"  # tolerate escaped slash form
+            if start_tag in final and (end_tag in final or end_tag_alt in final):
+                after = final.split(start_tag, 1)[1]
+                # choose the earliest closing tag variant after start
+                close_idx = len(after)
+                for candidate in (end_tag, end_tag_alt):
+                    if candidate in after:
+                        idx = after.index(candidate)
+                        if idx < close_idx:
+                            close_idx = idx
+                im_prompt = after[:close_idx].strip()
                 # Optional caption line e.g., 'Caption: ...'
                 caption = None
                 for line in final.splitlines():
@@ -286,8 +295,16 @@ async def chat_respond(email: str, history: List[ChatTurn]) -> Tuple[str, Dict[s
             try:
                 start_tag = "<IMAGE_PROMPT>"
                 end_tag = "</IMAGE_PROMPT>"
-                if start_tag in output_text and end_tag in output_text:
-                    im_prompt = output_text.split(start_tag, 1)[1].split(end_tag, 1)[0].strip()
+                end_tag_alt = "<\\/IMAGE_PROMPT>"
+                if start_tag in output_text and (end_tag in output_text or end_tag_alt in output_text):
+                    after = output_text.split(start_tag, 1)[1]
+                    close_idx = len(after)
+                    for candidate in (end_tag, end_tag_alt):
+                        if candidate in after:
+                            idx = after.index(candidate)
+                            if idx < close_idx:
+                                close_idx = idx
+                    im_prompt = after[:close_idx].strip()
                     caption = None
                     for line in output_text.splitlines():
                         if line.strip().lower().startswith("caption:"):

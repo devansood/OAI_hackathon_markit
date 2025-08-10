@@ -285,7 +285,17 @@
         return;
       }
       dbgBody.textContent = JSON.stringify(j, null, 2);
-      if(j){ const text=j.reply||''; if(j.image_url){ const img=document.createElement('img'); img.src=j.image_url; img.alt=j.caption||'Generated image'; img.style.maxWidth='60%'; img.style.borderRadius='12px'; addMessage({ id:now+1, from:'left', name:'Mark', text:(j.caption||'') + (text? ('\n'+text):''), time:new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) }); try{ msgs.lastElementChild.querySelector('.bubble .text').insertAdjacentElement('afterend', img);}catch(_){} } else { addMessage({ id:now+1, from:'left', name:'Mark', text:text, time:new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) }); } }
+      if(j){
+        const text=(j.reply||'').trim();
+        if(j.image_url){
+          const img=document.createElement('img'); img.src=j.image_url; img.alt=j.caption||'Generated image'; img.style.maxWidth='60%'; img.style.borderRadius='12px';
+          addMessage({ id:now+1, from:'left', name:'Mark', text:'How does this look?', time:new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) });
+          try{ msgs.lastElementChild.querySelector('.bubble .text').insertAdjacentElement('afterend', img);}catch(_){}
+        } else {
+          const cleaned = text.replace(/<\\/?IMAGE_PROMPT>/g,'').replace(/Caption:\s*/gi,'');
+          addMessage({ id:now+1, from:'left', name:'Mark', text:cleaned, time:new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) });
+        }
+      }
     }catch(e){ /* ignore */ }
   }
   document.getElementById('qa-merch').addEventListener('click', (e)=>{ try{ e.currentTarget.remove(); }catch(_){} sendMessage('Give me merch ideas'); });
