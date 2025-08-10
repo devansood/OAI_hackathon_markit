@@ -37,10 +37,13 @@
   .time{ margin-top:6px; color:rgba(255,255,255,.4); font-size:10px; letter-spacing:.12em; text-transform:uppercase; }
 
   .composer{ border-radius:16px; background:rgba(255,255,255,.06); border:1px solid var(--ring); padding:10px; }
-  .rowc{ display:flex; align-items:flex-end; gap:8px; }
-  .btn{ width:40px; height:40px; display:grid; place-items:center; border-radius:12px; background:rgba(255,255,255,.1); border:1px solid var(--ring); color:#fff; cursor:pointer; }
+  .quick{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px; }
+  .qbtn{ padding:8px 12px; border-radius:10px; background:rgba(16,185,129,.18); border:1px solid rgba(16,185,129,.35); color:#e9fff6; font-weight:600; cursor:pointer; }
+  .qbtn:hover{ background:rgba(16,185,129,.28); }
+  .rowc{ display:flex; align-items:center; gap:8px; }
+  .btn{ width:44px; height:44px; display:grid; place-items:center; border-radius:12px; background:rgba(255,255,255,.1); border:1px solid var(--ring); color:#fff; cursor:pointer; }
   .btn:hover{ background:rgba(255,255,255,.15); }
-  textarea{ flex:1; min-height:40px; max-height:160px; resize:none; color:var(--text); background:transparent; border:none; outline:none; padding:10px; font:14px/1.4 Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+  textarea{ flex:1; min-height:44px; max-height:160px; resize:none; color:var(--text); background:transparent; border:none; outline:none; padding:12px 14px; font:14px/1.4 Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
   .send{ background:rgba(16,185,129,.9); color:#051b14; font-weight:700; box-shadow:0 6px 18px rgba(16,185,129,.4); }
   .send:hover{ background:#34d399; }
 
@@ -66,6 +69,12 @@
     <section id="msgs" class="msgs"></section>
 
     <footer class="composer">
+      <div class="quick">
+        <button id="qa-merch" class="qbtn" title="Make merch">Merch</button>
+        <button id="qa-ugc" class="qbtn" title="Create UGC">UGC</button>
+        <button id="qa-pr" class="qbtn" title="Create PR campaign">PR</button>
+        <button id="qa-influencers" class="qbtn" title="Find influencers">Influencers</button>
+      </div>
       <div class="rowc">
         <textarea id="input" placeholder="Message… (Enter to send, Shift+Enter = newline)"></textarea>
         <button id="send" class="btn send" title="Send">➤</button>
@@ -141,6 +150,14 @@
 
   // no default messages; first assistant reply comes from backend on session start
 
+  function transformForAgent(val){
+    const low = (val||'').toLowerCase();
+    if (low.includes('make me merch') || /\bmerch\b/.test(low)){
+      return val + '\n\nPlease generate exactly two image mockups using <IMAGE_PROMPT>...</IMAGE_PROMPT>, each followed by a one-line Caption.';
+    }
+    return val;
+  }
+
   async function startSession(suppressRender){
     try{
       const r = await fetch('http://127.0.0.1:8000/api/chat/start',{
@@ -204,9 +221,10 @@
     addMessage({ id:Date.now(), from:'right', name:'You', text:val, time:new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) });
     input.value='';
     try{
+      const agentVal = transformForAgent(val);
       const r = await fetch('http://127.0.0.1:8000/api/chat/send',{
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ session_id: sessionId, email, message: val })
+        body: JSON.stringify({ session_id: sessionId, email, message: agentVal })
       });
       const status = r.status;
       const j = await r.json();
@@ -215,7 +233,7 @@
         await startSession(true);
         const r2 = await fetch('http://127.0.0.1:8000/api/chat/send',{
           method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ session_id: sessionId, email, message: val })
+          body: JSON.stringify({ session_id: sessionId, email, message: agentVal })
         });
         const j2 = await r2.json().catch(()=>({}));
         dbgBody.textContent = JSON.stringify(j2, null, 2);
@@ -226,19 +244,20 @@
       }
       dbgBody.textContent = JSON.stringify(j, null, 2);
       if(j){
-        const text = j.reply || '';
+        const text = (j.reply || '').trim();
         if (j.image_url){
           const img = document.createElement('img');
           img.src = j.image_url;
           img.alt = j.caption || 'Generated image';
           img.style.maxWidth = '60%';
           img.style.borderRadius = '12px';
-          addMessage({ id:Date.now()+1, from:'left', name:'Mark', text:(j.caption||'') + (text? ('\n'+text):''), time:new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) });
+          // Show a simple nudge instead of the raw prompt
+          addMessage({ id:Date.now()+1, from:'left', name:'Mark', text:'How does this look?', time:new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) });
           try { msgs.lastElementChild.querySelector('.bubble .text').insertAdjacentElement('afterend', img); } catch(_){}
-        } else if (typeof text === 'string' && text.includes('<img ')){
-          addMessage({ id:Date.now()+1, from:'left', name:'Mark', text:text, time:new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) });
         } else {
-          addMessage({ id:Date.now()+1, from:'left', name:'Mark', text:text, time:new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) });
+          // Strip IMAGE_PROMPT tags if they appear without an image URL
+          const cleaned = text.replace(/<\/?IMAGE_PROMPT>/g, '').replace(/Caption:\s*/gi, '');
+          addMessage({ id:Date.now()+1, from:'left', name:'Mark', text:cleaned, time:new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) });
         }
       }
     }catch(e){ console.error(e); }
@@ -247,6 +266,32 @@
   input.addEventListener('keydown', e=>{
     if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); }
   });
+  // Quick-action buttons
+  async function sendMessage(val){
+    input.value='';
+    const now = Date.now();
+    addMessage({ id:now, from:'right', name:'You', text:val, time:new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) });
+    const agentVal = transformForAgent(val);
+    try{
+      const r = await fetch('http://127.0.0.1:8000/api/chat/send',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ session_id: sessionId, email, message: agentVal }) });
+      const status = r.status;
+      const j = await r.json().catch(()=>({}));
+      if (status===404 || (j && j.detail && String(j.detail).toLowerCase().includes('unknown session'))){
+        await startSession(true);
+        const r2 = await fetch('http://127.0.0.1:8000/api/chat/send',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ session_id: sessionId, email, message: agentVal }) });
+        const j2 = await r2.json();
+        dbgBody.textContent = JSON.stringify(j2, null, 2);
+        if(j2&&j2.reply){ addMessage({ id:now+1, from:'left', name:'Mark', text:j2.reply, time:new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) }); }
+        return;
+      }
+      dbgBody.textContent = JSON.stringify(j, null, 2);
+      if(j){ const text=j.reply||''; if(j.image_url){ const img=document.createElement('img'); img.src=j.image_url; img.alt=j.caption||'Generated image'; img.style.maxWidth='60%'; img.style.borderRadius='12px'; addMessage({ id:now+1, from:'left', name:'Mark', text:(j.caption||'') + (text? ('\n'+text):''), time:new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) }); try{ msgs.lastElementChild.querySelector('.bubble .text').insertAdjacentElement('afterend', img);}catch(_){} } else { addMessage({ id:now+1, from:'left', name:'Mark', text:text, time:new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) }); } }
+    }catch(e){ /* ignore */ }
+  }
+  document.getElementById('qa-merch').addEventListener('click', (e)=>{ try{ e.currentTarget.remove(); }catch(_){} sendMessage('make me merch'); });
+  document.getElementById('qa-ugc').addEventListener('click', (e)=>{ try{ e.currentTarget.remove(); }catch(_){} sendMessage("let's make UGC"); });
+  document.getElementById('qa-pr').addEventListener('click', (e)=>{ try{ e.currentTarget.remove(); }catch(_){} sendMessage('create a PR campaign'); });
+  document.getElementById('qa-influencers').addEventListener('click', (e)=>{ try{ e.currentTarget.remove(); }catch(_){} sendMessage('find me influencers'); });
 </script>
 </body>
 </html>
