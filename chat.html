@@ -152,7 +152,7 @@
 
   function transformForAgent(val){
     const low = (val||'').toLowerCase();
-    if (low.includes('make me merch') || /\bmerch\b/.test(low)){
+    if (low.includes('make me merch') || low.includes('give me merch ideas') || /\bmerch\b/.test(low)){
       return val + '\n\nPlease generate exactly two image mockups using <IMAGE_PROMPT>...</IMAGE_PROMPT>, each followed by a one-line Caption.';
     }
     return val;
@@ -288,7 +288,7 @@
       if(j){ const text=j.reply||''; if(j.image_url){ const img=document.createElement('img'); img.src=j.image_url; img.alt=j.caption||'Generated image'; img.style.maxWidth='60%'; img.style.borderRadius='12px'; addMessage({ id:now+1, from:'left', name:'Mark', text:(j.caption||'') + (text? ('\n'+text):''), time:new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) }); try{ msgs.lastElementChild.querySelector('.bubble .text').insertAdjacentElement('afterend', img);}catch(_){} } else { addMessage({ id:now+1, from:'left', name:'Mark', text:text, time:new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) }); } }
     }catch(e){ /* ignore */ }
   }
-  document.getElementById('qa-merch').addEventListener('click', (e)=>{ try{ e.currentTarget.remove(); }catch(_){} sendMessage('make me merch'); });
+  document.getElementById('qa-merch').addEventListener('click', (e)=>{ try{ e.currentTarget.remove(); }catch(_){} sendMessage('Give me merch ideas'); });
   document.getElementById('qa-ugc').addEventListener('click', (e)=>{ try{ e.currentTarget.remove(); }catch(_){} sendMessage("let's make UGC"); });
   document.getElementById('qa-pr').addEventListener('click', (e)=>{ try{ e.currentTarget.remove(); }catch(_){} sendMessage('create a PR campaign'); });
   document.getElementById('qa-influencers').addEventListener('click', (e)=>{ try{ e.currentTarget.remove(); }catch(_){} sendMessage('find me influencers'); });
