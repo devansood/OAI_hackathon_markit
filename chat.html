@@ -96,6 +96,7 @@
   const pre = params.get('pre') === '1';
   const sid = params.get('sid') || '';
   let preloadedFirstReply = '';
+  let greetingShown = false;
   let sessionId = '';
   const dbg = document.getElementById('debug');
   const dbgBody = document.getElementById('dbgBody');
@@ -140,7 +141,7 @@
 
   // no default messages; first assistant reply comes from backend on session start
 
-  async function startSession(){
+  async function startSession(suppressRender){
     try{
       const r = await fetch('http://127.0.0.1:8000/api/chat/start',{
         method:'POST', headers:{'Content-Type':'application/json'},
@@ -150,9 +151,12 @@
       if(j && j.session_id){ sessionId = j.session_id; }
       dbgBody.textContent = JSON.stringify(j, null, 2);
       // If backend prefetched a greeting, show it as the first assistant message
-      if(j && j.first_reply){
+      if(!suppressRender && j && j.first_reply && !greetingShown){
         addMessage({ id:Date.now(), from:'left', name:'Mark', text:j.first_reply, time:new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) });
+        greetingShown = true;
       }
+      // cache first reply for resilience
+      try { if (sessionId && j && j.first_reply) { sessionStorage.setItem('markit_first_reply_' + sessionId, j.first_reply); } } catch(_){}
     }catch(e){ console.error(e); }
   }
   // Use pre-created session if provided from loading page
@@ -167,17 +171,25 @@
         if (cached) {
           addMessage({ id:Date.now(), from:'left', name:'Mark', text:cached, time:new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) });
           preloadedFirstReply = cached;
+          greetingShown = true;
         }
       } catch(_) { /* ignore */ }
 
       fetch('http://127.0.0.1:8000/api/chat/status?session_id=' + encodeURIComponent(sessionId))
-        .then(r=>r.json())
+        .then(async r=>{
+          if (!r.ok) {
+            // Session missing on server; re-create a new one without duplicating greeting
+            await startSession(true);
+          }
+          return r.json().catch(()=>({}));
+        })
         .then(j=>{
           // Show debug and render last assistant message if present
           dbgBody.textContent = JSON.stringify(j, null, 2);
           const candidate = (j && j.last_assistant) ? j.last_assistant : '';
-          if(candidate && candidate !== preloadedFirstReply){
+          if(candidate && candidate !== preloadedFirstReply && !greetingShown){
             addMessage({ id:Date.now(), from:'left', name:'Mark', text:candidate, time:new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) });
+            greetingShown = true;
           }
         })
         .catch(()=>{});
@@ -196,7 +208,22 @@
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ session_id: sessionId, email, message: val })
       });
+      const status = r.status;
       const j = await r.json();
+      // If session was lost on server, re-create and retry once
+      if (status === 404 || (j && j.detail && String(j.detail).toLowerCase().includes('unknown session'))) {
+        await startSession(true);
+        const r2 = await fetch('http://127.0.0.1:8000/api/chat/send',{
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ session_id: sessionId, email, message: val })
+        });
+        const j2 = await r2.json().catch(()=>({}));
+        dbgBody.textContent = JSON.stringify(j2, null, 2);
+        if(j2 && j2.reply){
+          addMessage({ id:Date.now()+1, from:'left', name:'Mark', text:j2.reply, time:new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) });
+        }
+        return;
+      }
       dbgBody.textContent = JSON.stringify(j, null, 2);
       if(j && j.reply){
         addMessage({ id:Date.now()+1, from:'left', name:'Mark', text:j.reply, time:new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) });

@@ -96,23 +96,31 @@
   let isExisting = false;
   let chatSessionId = '';
   let firstReply = '';
+  function maybeSkipNow(){
+    if (isExisting && chatSessionId){
+      const qs = new URLSearchParams({ email: email||'', sid: chatSessionId||'', pre: firstReply? '1':'0' });
+      window.location.href = './chat.html?' + qs.toString();
+    }
+  }
   if (email) {
     // Kick off both tasks ASAP, in parallel: research + chat session greeting.
     const briefTask = fetch('http://127.0.0.1:8000/api/brief', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email })
-    }).then(r=>r.json()).then(d=>{ briefResult = d; isExisting = !!(d && d.mode === 'existing'); return d; }).catch(()=>null);
+    }).then(r=>r.json()).then(d=>{ 
+      briefResult = d; 
+      isExisting = !!(d && d.mode === 'existing'); 
+      if (isExisting) { maybeSkipNow(); }
+      return d; 
+    }).catch(()=>null);
 
     const chatTask = fetch('http://127.0.0.1:8000/api/chat/start',{
       method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email })
     }).then(r=>r.json()).then(sj=>{
       chatSessionId = sj.session_id || '';
       firstReply = sj.first_reply || '';
-      try {
-        if (chatSessionId && firstReply) {
-          sessionStorage.setItem('markit_first_reply_' + chatSessionId, firstReply);
-        }
-      } catch(_) { /* ignore storage errors */ }
+      try { if (chatSessionId) { sessionStorage.setItem('markit_first_reply_' + chatSessionId, firstReply||''); } } catch(_) {}
+      maybeSkipNow();
       return sj;
     }).catch(()=>null);
 

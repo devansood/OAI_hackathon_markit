@@ -190,7 +190,9 @@ async def create_brief(req: BriefRequest, background: BackgroundTasks, wait: boo
     client = OpenAI(api_key=api_key)
     airtable_api_key = os.getenv("AIRTABLE_API_KEY")
     airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
-    airtable_table = os.getenv("AIRTABLE_TABLE", "OAI Hackathon")
+    # Sanitize table env (strip whitespace or stray '%' from copy/paste)
+    _tbl = os.getenv("AIRTABLE_TABLE", "OAI Hackathon") or "OAI Hackathon"
+    airtable_table = _tbl.strip().rstrip('%')
 
     if not airtable_api_key or not airtable_base_id:
         # Continue without Airtable, but note missing config
@@ -288,7 +290,8 @@ async def chat_start(req: ChatStartRequest) -> Dict[str, Any]:
     load_dotenv(override=True)
     airtable_api_key = os.getenv("AIRTABLE_API_KEY")
     airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
-    airtable_table = os.getenv("AIRTABLE_TABLE", "OAI Hackathon")
+    _tbl2 = os.getenv("AIRTABLE_TABLE", "OAI Hackathon") or "OAI Hackathon"
+    airtable_table = _tbl2.strip().rstrip('%')
     brief: Optional[Dict[str, Any]] = None
     record_id: Optional[str] = None
     airtable_meta: Dict[str, Any] = {"enabled": bool(airtable_api_key and airtable_base_id)}
