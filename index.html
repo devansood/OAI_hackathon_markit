@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Markit – AI Marketing Toolkit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --base:#080b0a;
+  --accent:#39ff88;         /* Matrix green */
+  --accentSoft:rgba(57,255,136,0.35);
+  --cyan:rgba(0,200,255,0.22);
+  --lime:rgba(170,255,120,0.22);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+  color:#e7ffe8;
+  background:var(--base);
+  overflow-x:hidden;
+}
+.root{
+  position:relative;
+  min-height:100vh;
+  isolation:isolate; /* keep z-layers sane */
+}
+
+/* ===== Background: liquid streams ===== */
+.bg{ position:absolute; inset:0; z-index:0; overflow:hidden; }
+.base-glow{
+  position:absolute; inset:0; z-index:0;
+  background:
+    radial-gradient(120% 120% at 30% 10%, rgba(0,0,0,0), var(--base) 70%),
+    linear-gradient(180deg, var(--base) 0%, rgba(0,0,0,0.2) 60%, var(--base) 100%);
+}
+.noise{
+  position:absolute; inset:0; z-index:0; pointer-events:none; mix-blend-mode:overlay; opacity:.30;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.03'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.stream{
+  position:absolute; left:-30vw; top:50vh;
+  border-radius:999px;
+  pointer-events:none; mix-blend-mode:screen;
+  filter: blur(110px) saturate(110%); /* fuzziness */
+  -webkit-mask-image: radial-gradient(150% 140% at 50% 55%, black 30%, rgba(0,0,0,.6) 70%, transparent 100%);
+          mask-image: radial-gradient(150% 140% at 50% 55%, black 30%, rgba(0,0,0,.6) 70%, transparent 100%);
+  will-change: transform, background-position, filter;
+}
+
+/* ===== Top controls ===== */
+.topbar{
+  position:absolute; inset-inline:0; top:0; z-index:5;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:20px 24px;
+}
+.brand{display:flex; gap:10px; align-items:center}
+.dot{width:32px; height:32px; border-radius:14px;
+  background:linear-gradient(135deg, #34d399, #22d3ee);
+  box-shadow:0 0 0 2px rgba(110,231,183,.4) inset;
+}
+.chiprow{
+  display:flex; gap:8px; padding:6px;
+  background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.1);
+  backdrop-filter: blur(8px);
+  border-radius:999px;
+}
+.chip{
+  border:none; border-radius:999px; padding:6px 10px;
+  font-size:12px; color:rgba(200,255,220,.8);
+  background:transparent; cursor:pointer;
+}
+.chip.active{
+  background:rgba(16,185,129,.25);
+  color:#d1ffe6; box-shadow:0 0 0 1px rgba(110,231,183,.3) inset;
+}
+
+/* ===== Glass card ===== */
+.shell{
+  position:relative; z-index:10;
+  display:grid; place-items:center;
+  min-height:100vh; padding:96px 24px;
+}
+.card{
+  width:min(680px, calc(100% - 32px));
+  background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.15);
+  border-radius:28px; padding:40px 24px;
+  backdrop-filter: blur(18px);
+  box-shadow: 0 10px 40px rgba(0,0,0,.4);
+}
+.eyebrow{
+  text-transform:uppercase; letter-spacing:.32em; font-size:11px;
+  color:rgba(110,231,183,.8); text-align:center;
+}
+h1{
+  margin:10px 0 6px; text-align:center;
+  font-size:clamp(24px, 3.6vw, 36px); line-height:1.1; color:#eafff1;
+  font-weight:700;
+}
+.sub{
+  margin:8px auto 24px; max-width:540px; text-align:center; color:rgba(209,250,229,.8);
+  font-size:14px;
+}
+.row{display:flex; gap:12px; align-items:center; justify-content:center; flex-wrap:wrap}
+input{
+  flex:1 1 420px;
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:16px; color:#eafff1;
+  padding:16px 18px; font-size:15px; outline:none;
+}
+input::placeholder{color:rgba(209,250,229,.5)}
+.btn{
+  background:#34d399; color:#052e1e; border:none;
+  padding:14px 20px; border-radius:16px; font-weight:600; cursor:pointer;
+  box-shadow:0 6px 16px rgba(16,185,129,.35);
+}
+.btn:disabled{
+  opacity:0.6; cursor:not-allowed;
+}
+.fine{margin-top:10px; text-align:center; color:rgba(209,250,229,.65); font-size:12px}
+.wm{position:absolute; right:16px; bottom:16px; z-index:10; font-size:12px; color:rgba(209,250,229,.6)}
+</style>
+</head>
+<body>
+<div class="root" id="root">
+  <!-- Background -->
+  <div class="bg">
+    <div class="base-glow"></div>
+    <div class="noise"></div>
+    <!-- Streams (created by JS, but a few defaults exist to avoid flash) -->
+    <span class="stream" id="s0"></span>
+    <span class="stream" id="s1"></span>
+    <span class="stream" id="s2"></span>
+    <span class="stream" id="s3"></span>
+  </div>
+
+  <!-- Top controls removed -->
+
+  <!-- Foreground (glass) -->
+  <main class="shell">
+    <section class="card" aria-label="hero">
+      <h1>distribution is everything</h1>
+      <p class="sub">generate your marketing starter kit</p>
+      <div class="row" style="margin-top:18px;">
+        <input id="emailInput" type="email" placeholder="you@company.com" inputmode="email" autocomplete="email" />
+        <button id="startBtn" class="btn">Go</button>
+      </div>
+      
+    </section>
+  </main>
+
+  <!-- watermark removed -->
+</div>
+
+<script>
+// ===== Palettes =====
+const palettes = {
+  matrix:{ base:'#080b0a', accent:'#39ff88', accentSoft:'rgba(57,255,136,0.35)', cyan:'rgba(0,200,255,0.22)', lime:'rgba(170,255,120,0.22)' },
+  neon:{   base:'#070a09', accent:'#34ff9a', accentSoft:'rgba(52,255,154,0.35)', cyan:'rgba(0,214,255,0.28)', lime:'rgba(183,255,84,0.22)' },
+  jade:{   base:'#070908', accent:'#3efc8d', accentSoft:'rgba(62,252,141,0.32)', cyan:'rgba(96,231,255,0.22)', lime:'rgba(140,255,150,0.25)' }
+};
+
+// Apply palette to CSS variables
+function applyPalette(p) {
+  const r = document.documentElement.style;
+  r.setProperty('--base', p.base);
+  r.setProperty('--accent', p.accent);
+  r.setProperty('--accentSoft', p.accentSoft);
+  r.setProperty('--cyan', p.cyan);
+  r.setProperty('--lime', p.lime);
+  document.body.style.background = p.base;
+}
+applyPalette(palettes.matrix);
+
+// ===== Motion / streams =====
+const streams = [
+  { el: document.getElementById('s0'), baseTilt:-35, width:140, colorVar:'--accentSoft', opacity:.55, strength:1.0 },
+  { el: document.getElementById('s1'), baseTilt:15,  width:125, colorVar:'--cyan',      opacity:.45, strength:0.9 },
+  { el: document.getElementById('s2'), baseTilt:-10, width:160, colorVar:'--lime',      opacity:.42, strength:1.1 },
+  { el: document.getElementById('s3'), baseTilt:-22, width:160, colorVar:'--accent',    opacity:.28, strength:1.0, thin:true }
+];
+// Prepare base dimensions
+streams.forEach((s)=>{
+  s.el.style.width = s.width + 'vw';
+  s.el.style.height = Math.max(24, s.width*0.22) + 'vh';
+  s.el.style.opacity = s.opacity;
+});
+
+let t = 0;
+let pointer = { x:50, y:50 };
+let hovering = false;
+
+const influenceBase = 0.03;
+const influenceHover = 0.06;
+
+// Pseudo-noise (sum of sines) for organic motion
+const noise = (tt, seed) =>
+  Math.sin(tt*(0.9 + seed*0.07) + seed)*0.5 +
+  Math.sin(tt*(1.7 + seed*0.11) + seed*1.3)*0.32 +
+  Math.cos(tt*(0.37+ seed*0.05) + seed*0.7)*0.18;
+
+function frame() {
+  t += 0.004; // speed
+  streams.forEach((s,idx) => {
+    const tt = t * (1 + idx*0.12);
+    const seed = 1.234 * (idx + 1);
+    const nx = noise(tt, seed);
+    const ny = noise(tt*0.83 + 2.1, seed + 3.3);
+
+    // diagonal, non-linear drift + pointer nudge
+    const driftX = nx*10*s.strength + ny*6*s.strength + (pointer.x-50)*0.06 + (pointer.y-50)*0.03;
+    const driftY = ny*8*s.strength + nx*4*s.strength + (pointer.y-50)*0.06 + (pointer.x-50)*0.03;
+
+    const angle = s.baseTilt + 25*ny + 10*nx + ((pointer.x-50)+(pointer.y-50))*0.04;
+    const bgX = (50 + 40*nx + tt*12) % 100;
+    const bgY = (50 + 40*ny + tt*7 ) % 100;
+
+    const color = getComputedStyle(document.documentElement).getPropertyValue(s.colorVar).trim();
+
+    // fuzzier center ramp
+    const grad = s.thin
+      ? `linear-gradient(45deg, transparent 38%, ${color} 50%, transparent 62%)`
+      : `linear-gradient(${angle}deg, transparent 0%, ${color} 40%, ${color} 60%, transparent 100%)`;
+
+    // heavier blur on thin filament
+    s.el.style.filter = s.thin ? 'blur(48px) saturate(115%)' : 'blur(110px) saturate(110%)';
+
+    s.el.style.backgroundImage = grad;
+    s.el.style.backgroundSize = (220 + idx*50) + '% 120%';
+    s.el.style.backgroundPosition = `${bgX}% ${bgY}%`;
+    s.el.style.transform = `translate(${driftX}vw, ${driftY}vh) rotate(${angle}deg) skewX(${nx*3}deg) skewY(${ny*3}deg)`;
+  });
+
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// pointer tracking (gentle)
+const root = document.getElementById('root');
+root.addEventListener('pointermove', e=>{
+  const r = root.getBoundingClientRect();
+  pointer.x = ((e.clientX - r.left) / r.width) * 100 * (1 - influenceHover) + pointer.x * influenceHover;
+  pointer.y = ((e.clientY - r.top) / r.height) * 100 * (1 - influenceHover) + pointer.y * influenceHover;
+}, {passive:true});
+root.addEventListener('pointerenter', ()=> hovering = true);
+root.addEventListener('pointerleave', ()=> hovering = false);
+
+// Theme switcher removed; keeping default palette
+
+// Start button handlers (email)
+const emailInput = document.getElementById('emailInput');
+const startBtn = document.getElementById('startBtn');
+if (startBtn && emailInput) {
+  function proceed(){
+    const raw = (emailInput.value || '').trim();
+    if(!raw){ emailInput.focus(); return; }
+    const emailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(raw);
+    if(!emailOk){ alert('Please enter a valid email'); emailInput.focus(); return; }
+    try{
+      window.location.href = `./generate.html?email=${encodeURIComponent(raw)}`;
+    }catch(err){
+      alert('Please enter a valid email');
+      emailInput.focus();
+    }
+  }
+  startBtn.addEventListener('click', proceed);
+  emailInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ proceed(); } });
+}
+</script>
+</body>
+</html>

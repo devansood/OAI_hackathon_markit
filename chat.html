@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Markit – Chat</title>
+<style>
+  :root{ --bg:#0A0F0E; --card:rgba(255,255,255,.06); --ring:rgba(255,255,255,.12); --text:#f0fff6; --muted:rgba(240,255,246,.6); --accent:#34d399; }
+  html,body{ height:100%; }
+  body{ margin:0; background:var(--bg); color:var(--text); font:14px/1.4 Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; overflow:hidden; }
+  .beam{ position:absolute; border-radius:999px; filter:blur(24px); opacity:.30; }
+  .beam.diag{ background:linear-gradient(90deg, rgba(16,185,129,.4), rgba(110,231,183,.1)); width:60vw; height:120vh; left:-30vw; top:-20vh; animation:beamDiagonal 18s ease-in-out infinite; transform:rotate(25deg); }
+  .beam.slow{ background:linear-gradient(45deg, rgba(16,185,129,.2), rgba(94,234,212,.06)); width:70vw; height:110vh; left:25vw; bottom:-30vh; animation:beamSlow 28s ease-in-out infinite; transform:rotate(-15deg); }
+  .beam.rev{ background:linear-gradient(90deg, rgba(16,185,129,.15), rgba(190,242,100,.06)); width:50vw; height:90vh; right:-10vw; top:-30vh; animation:beamRev 24s ease-in-out infinite; transform:rotate(12deg); }
+  @keyframes beamDiagonal { 0%{ transform:translate(-20%, -10%) rotate(25deg);} 50%{ transform:translate(5%,10%) rotate(25deg);} 100%{ transform:translate(-20%, -10%) rotate(25deg);} }
+  @keyframes beamSlow { 0%{ transform:translate(0,0) rotate(-15deg);} 50%{ transform:translate(-5%,5%) rotate(-15deg);} 100%{ transform:translate(0,0) rotate(-15deg);} }
+  @keyframes beamRev { 0%{ transform:translate(10%,-10%) rotate(12deg);} 50%{ transform:translate(-10%,10%) rotate(12deg);} 100%{ transform:translate(10%,-10%) rotate(12deg);} }
+
+  .shell{ position:relative; z-index:1; margin:0 auto; margin-top:64px; width:min(900px, 100% - 24px); height:80vh; display:grid; grid-template-rows:auto 1fr auto; gap:12px; padding:16px; border-radius:24px; background:rgba(255,255,255,.05); border:1px solid var(--ring); backdrop-filter:blur(18px); box-shadow:0 10px 80px -20px rgba(16,185,129,.5); }
+  .header{ display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-radius:18px; background:rgba(255,255,255,.06); border:1px solid var(--ring); }
+  .id{ display:flex; align-items:center; gap:10px; }
+  .avatar{ position:relative; width:36px; height:36px; border-radius:12px; padding:2px; background:linear-gradient(135deg, #34d399, #22d3ee); }
+  .avatar > div{ width:100%; height:100%; display:grid; place-items:center; background:#0C1210; border-radius:10px; font-size:12px; font-weight:700; }
+  .status{ position:absolute; right:-2px; bottom:-2px; width:12px; height:12px; border-radius:999px; background:#34d399; border:1px solid #000; }
+  .title{ font-weight:700; letter-spacing:.2px; }
+  .subtitle{ color:var(--muted); font-size:12px; }
+  .icons{ display:flex; gap:10px; color:rgba(255,255,255,.7); }
+  .icon{ width:18px; height:18px; display:inline-block; opacity:.9; }
+
+  .msgs{ overflow:auto; padding:0 8px; }
+  .row{ display:flex; align-items:flex-end; gap:10px; margin:10px 0; }
+  .row.right{ justify-content:flex-end; }
+  .bubble{ max-width:70%; padding:12px 14px; border-radius:16px; backdrop-filter:blur(8px); border:1px solid var(--ring); }
+  .left .bubble{ background:rgba(255,255,255,.08); }
+  .right .bubble{ background:rgba(16,185,129,.18); border-color:rgba(16,185,129,.35); }
+  .name{ color:rgba(255,255,255,.7); font-size:12px; margin-bottom:4px; font-weight:600; }
+  .time{ margin-top:6px; color:rgba(255,255,255,.4); font-size:10px; letter-spacing:.12em; text-transform:uppercase; }
+
+  .composer{ border-radius:16px; background:rgba(255,255,255,.06); border:1px solid var(--ring); padding:10px; }
+  .rowc{ display:flex; align-items:flex-end; gap:8px; }
+  .btn{ width:40px; height:40px; display:grid; place-items:center; border-radius:12px; background:rgba(255,255,255,.1); border:1px solid var(--ring); color:#fff; cursor:pointer; }
+  .btn:hover{ background:rgba(255,255,255,.15); }
+  textarea{ flex:1; min-height:40px; max-height:160px; resize:none; color:var(--text); background:transparent; border:none; outline:none; padding:10px; font:14px/1.4 Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+  .send{ background:rgba(16,185,129,.9); color:#051b14; font-weight:700; box-shadow:0 6px 18px rgba(16,185,129,.4); }
+  .send:hover{ background:#34d399; }
+
+  .fadeIn{ animation:fadeIn .8s ease forwards; }
+  @keyframes fadeIn{ from{ opacity:0 } to{ opacity:1 } }
+</style>
+</head>
+<body>
+  <div class="beam diag"></div>
+  <div class="beam slow"></div>
+  <div class="beam rev"></div>
+
+  <main class="shell fadeIn">
+    <header class="header">
+      <div class="id">
+        <div>
+          <div class="title">#launch-kit</div>
+          <div class="subtitle">Singular chat • Private</div>
+        </div>
+      </div>
+    </header>
+
+    <section id="msgs" class="msgs"></section>
+
+    <footer class="composer">
+      <div class="rowc">
+        <textarea id="input" placeholder="Message… (Enter to send, Shift+Enter = newline)"></textarea>
+        <button id="send" class="btn send" title="Send">➤</button>
+      </div>
+    </footer>
+  </main>
+
+  <div id="debug" style="position:fixed; right:16px; top:16px; z-index:99999; width:460px; max-height:60vh; overflow:auto; background:rgba(0,0,0,.75); border:1px solid rgba(255,255,255,.2); border-radius:12px; color:#eafff3; font:12px/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; padding:10px; box-shadow:0 10px 40px rgba(0,0,0,.6); display:none;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <strong>Debug</strong>
+      <button id="hideDebug" style="background:transparent; color:#eafff3; border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:4px 8px; cursor:pointer;">hide</button>
+    </div>
+    <div><b>Endpoint</b>: <code>/api/chat/send</code></div>
+    <div><b>Backend file</b>: <code>server/app.py</code></div>
+    <div><b>Function</b>: <code>chat_send</code></div>
+    <div><b>Agent code</b>: <code>server/agents_sdk/orchestrator.py</code></div>
+    <div><b>Agent function</b>: <code>chat_respond()</code></div>
+    <hr style="border-color:rgba(255,255,255,.15)"/>
+    <div style="white-space:pre-wrap" id="dbgBody">Ready.</div>
+  </div>
+
+<script>
+  const msgs = document.getElementById('msgs');
+  const input = document.getElementById('input');
+  const sendBtn = document.getElementById('send');
+  const params = new URLSearchParams(location.search);
+  const email = params.get('email') || '';
+  const pre = params.get('pre') === '1';
+  const sid = params.get('sid') || '';
+  let preloadedFirstReply = '';
+  let sessionId = '';
+  const dbg = document.getElementById('debug');
+  const dbgBody = document.getElementById('dbgBody');
+  document.getElementById('hideDebug').onclick = () => { try { dbg.style.display = 'none'; } catch(_){} };
+
+  // Toggle debug panel on double-Escape
+  let lastEscAt = 0;
+  document.addEventListener('keydown', (e)=>{
+    if(e.key === 'Escape'){
+      const now = Date.now();
+      if (now - lastEscAt <= 500){
+        // Double-press detected: toggle visibility
+        e.preventDefault();
+        try { dbg.style.display = (dbg.style.display === 'none' || dbg.style.display === '') ? 'block' : 'none'; } catch(_){}
+        lastEscAt = 0;
+      } else {
+        lastEscAt = now;
+      }
+    }
+  });
+
+
+  function addMessage(m){
+    const row = document.createElement('div');
+    row.className = 'row ' + m.from;
+    if(m.from==='right') row.classList.add('right');
+    const params = new URLSearchParams(location.search);
+    const email = params.get('email') || '';
+    const youTag = (email.match(/^([a-zA-Z]{2})/) || [,'YOU'])[1].toUpperCase();
+    row.innerHTML = `
+      ${m.from==='left' ? '<div class="avatar" style="width:36px;height:36px;border-radius:12px;padding:2px;background:linear-gradient(135deg,#34d399,#22d3ee)"><img src="./mark_profile.png" alt="Mark" style="width:100%;height:100%;object-fit:cover;border-radius:10px;display:block;background:#0C1210"/></div>' : ''}
+      <div class="bubble">
+        ${m.from==='left' ? '<div class="name">'+ (m.name||'') +'</div>' : ''}
+        <div class="text">${m.text.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br/>')}</div>
+        <div class="time">${m.time}</div>
+      </div>
+      ${m.from==='right' ? '<div class="avatar" style="width:36px;height:36px;border-radius:12px;padding:2px;background:rgba(255,255,255,.1)"><div style="width:100%;height:100%;display:grid;place-items:center;background:#0D1412;border-radius:10px;font-size:10px;font-weight:700">'+ youTag +'</div></div>' : ''}
+    `;
+    msgs.appendChild(row);
+    msgs.scrollTo({ top: msgs.scrollHeight, behavior:'smooth' });
+  }
+
+  // no default messages; first assistant reply comes from backend on session start
+
+  async function startSession(){
+    try{
+      const r = await fetch('http://127.0.0.1:8000/api/chat/start',{
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ email })
+      });
+      const j = await r.json();
+      if(j && j.session_id){ sessionId = j.session_id; }
+      dbgBody.textContent = JSON.stringify(j, null, 2);
+      // If backend prefetched a greeting, show it as the first assistant message
+      if(j && j.first_reply){
+        addMessage({ id:Date.now(), from:'left', name:'Mark', text:j.first_reply, time:new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) });
+      }
+    }catch(e){ console.error(e); }
+  }
+  // Use pre-created session if provided from loading page
+  if (sid) {
+    sessionId = sid;
+    dbgBody.textContent = JSON.stringify({ ok:true, session_id: sessionId, source:'preloaded' }, null, 2);
+    // Fetch the current session status to render the preloaded first assistant message
+    try{
+      // Prefer immediate preloaded first reply from sessionStorage, fallback to status API
+      try {
+        const cached = sessionStorage.getItem('markit_first_reply_' + sessionId) || '';
+        if (cached) {
+          addMessage({ id:Date.now(), from:'left', name:'Mark', text:cached, time:new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) });
+          preloadedFirstReply = cached;
+        }
+      } catch(_) { /* ignore */ }
+
+      fetch('http://127.0.0.1:8000/api/chat/status?session_id=' + encodeURIComponent(sessionId))
+        .then(r=>r.json())
+        .then(j=>{
+          // Show debug and render last assistant message if present
+          dbgBody.textContent = JSON.stringify(j, null, 2);
+          const candidate = (j && j.last_assistant) ? j.last_assistant : '';
+          if(candidate && candidate !== preloadedFirstReply){
+            addMessage({ id:Date.now(), from:'left', name:'Mark', text:candidate, time:new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) });
+          }
+        })
+        .catch(()=>{});
+    }catch(e){ /* ignore */ }
+  } else {
+    startSession();
+  }
+
+  async function send(){
+    const val = input.value.trim();
+    if(!val) return;
+    addMessage({ id:Date.now(), from:'right', name:'You', text:val, time:new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) });
+    input.value='';
+    try{
+      const r = await fetch('http://127.0.0.1:8000/api/chat/send',{
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ session_id: sessionId, email, message: val })
+      });
+      const j = await r.json();
+      dbgBody.textContent = JSON.stringify(j, null, 2);
+      if(j && j.reply){
+        addMessage({ id:Date.now()+1, from:'left', name:'Mark', text:j.reply, time:new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) });
+      }
+    }catch(e){ console.error(e); }
+  }
+  sendBtn.addEventListener('click', send);
+  input.addEventListener('keydown', e=>{
+    if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); }
+  });
+</script>
+</body>
+</html>
+
+

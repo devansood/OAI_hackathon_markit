@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Markit – Video</title>
+<style>
+  html,body{ height:100%; }
+  body{ margin:0; background:#000; overflow:hidden; }
+  .stage{ position:fixed; inset:0; background:#000; }
+  video{ position:fixed; inset:0; width:100vw; height:100vh; object-fit:cover; background:#000; }
+  /* True crossfade: black overlay fades out on intro, fades in on outro */
+  .reveal{ position:fixed; inset:0; background:#000; pointer-events:none; opacity:1; animation:fade-out 1600ms cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+  @keyframes fade-out { from { opacity:1; } to { opacity:0; } }
+  @keyframes fade-in  { from { opacity:0; } to { opacity:1; } }
+
+  /* Loading overlay (glassy card like home) */
+  .loading-stage{ position:fixed; inset:0; display:none; }
+  .loading-bg{ position:absolute; inset:0; background:
+      radial-gradient(120% 90% at 25% 30%, rgba(61,244,135,0.10), transparent 60%),
+      radial-gradient(100% 80% at 75% 70%, rgba(61,244,135,0.06), transparent 70%),
+      #070a09; }
+  .loading-canvas{ position:absolute; inset:0; display:block; }
+  .loading-shell{ position:relative; z-index:2; height:100%; display:grid; place-items:center; padding:96px 24px; }
+  .glass-card{ width:min(680px, calc(100% - 32px)); background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.15); border-radius:28px; padding:28px 22px; backdrop-filter: blur(18px); box-shadow:0 10px 40px rgba(0,0,0,.4); color:#eafff1; font-family:Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+  .title{ font-weight:700; font-size:18px; margin:0 0 8px; }
+  .muted{ color:rgba(209,250,229,.75); font-size:13px; margin:0 0 14px; }
+  .bar{ height:10px; border-radius:999px; background:rgba(255,255,255,.14); overflow:hidden; position:relative; }
+  .fill{ height:100%; width:0%; background:linear-gradient(90deg, #34d399, #22d3ee); box-shadow:0 0 16px rgba(52,211,153,.45); transition:width 300ms ease; }
+  .row{ display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:10px; font-size:12px; color:rgba(209,250,229,.8); }
+  .diag{ position:absolute; left:50%; bottom:14px; transform:translateX(-50%); font-size:11px; color:rgba(209,250,229,.5) }
+  /* Optional tap-to-play overlay if autoplay with sound is blocked */
+  .overlay{ position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.6); color:#fff; font:600 16px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+  .overlay button{ background:#34d399; border:none; color:#052e1e; padding:12px 16px; border-radius:12px; font-weight:700; cursor:pointer; }
+  .sr-only{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); border:0; }
+  
+</style>
+</head>
+<body>
+  <div class="stage">
+    <video id="heroVideo" playsinline autoplay preload="auto">
+      <source src="./temporary.mp4" type="video/mp4" />
+      <p class="sr-only">Your browser does not support HTML5 video.</p>
+    </video>
+    <div class="reveal" id="wipe" aria-hidden="true"></div>
+    <div id="tapOverlay" class="overlay"><button id="playBtn">Tap to play with sound</button></div>
+  </div>
+
+  <!-- Loading overlay -->
+  <div id="loading" class="loading-stage" aria-hidden="true">
+    <div class="loading-bg"></div>
+    <canvas id="runway" class="loading-canvas"></canvas>
+    <div class="loading-shell">
+      <section class="glass-card" role="status" aria-live="polite">
+        <div class="title">Generating your marketing toolkit…</div>
+        <p class="muted">This takes about 8 minutes. You can keep this tab in the background.</p>
+        <div class="bar"><div id="fill" class="fill"></div></div>
+        <div class="row"><span id="pct">0%</span><span id="eta" style="display:none"></span></div>
+      </section>
+      <div id="diag" class="diag" style="display:none;"></div>
+    </div>
+  </div>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const email = params.get('email') || '';
+  const v = document.getElementById('heroVideo');
+  const wipe = document.getElementById('wipe');
+  const overlay = document.getElementById('tapOverlay');
+  const playBtn = document.getElementById('playBtn');
+  const loading = document.getElementById('loading');
+  const fill = document.getElementById('fill');
+  const pct = document.getElementById('pct');
+  const eta = document.getElementById('eta');
+  const runway = document.getElementById('runway');
+  const diag = document.getElementById('diag');
+
+  // Ensure volume is up and try to play immediately
+  v.volume = 1.0;
+  const tryPlay = () => v.play().catch(()=>{
+    overlay.style.display = 'flex';
+  });
+
+  // Try on load; some browsers may still require a user gesture
+  if (v.readyState >= 2) { tryPlay(); } else { v.addEventListener('canplay', tryPlay, { once: true }); }
+
+  // If blocked, let user tap to start with audio
+  playBtn.addEventListener('click', () => {
+    overlay.style.display = 'none';
+    v.play().catch(()=>{ /* ignore */ });
+  });
+
+  // Fire-and-forget backend call (not shown to user)
+  let briefPromise = Promise.resolve(null);
+  let briefResult = null;
+  let isExisting = false;
+  let chatSessionId = '';
+  let firstReply = '';
+  if (email) {
+    // Kick off both tasks ASAP, in parallel: research + chat session greeting.
+    const briefTask = fetch('http://127.0.0.1:8000/api/brief', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    }).then(r=>r.json()).then(d=>{ briefResult = d; isExisting = !!(d && d.mode === 'existing'); return d; }).catch(()=>null);
+
+    const chatTask = fetch('http://127.0.0.1:8000/api/chat/start',{
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email })
+    }).then(r=>r.json()).then(sj=>{
+      chatSessionId = sj.session_id || '';
+      firstReply = sj.first_reply || '';
+      try {
+        if (chatSessionId && firstReply) {
+          sessionStorage.setItem('markit_first_reply_' + chatSessionId, firstReply);
+        }
+      } catch(_) { /* ignore storage errors */ }
+      return sj;
+    }).catch(()=>null);
+
+    briefPromise = Promise.allSettled([briefTask, chatTask]);
+  }
+
+  // Outro: when video ends, fade to black then show loading overlay
+  v.addEventListener('ended', () => {
+    wipe.style.animation = 'fade-in 1200ms cubic-bezier(0.22, 1, 0.36, 1) forwards';
+    setTimeout(()=>{ 
+      loading.style.display = 'block'; 
+      startLoadingAnimation(); 
+      // If this email already exists in Airtable, instantly finish (after brief response resolves)
+      briefPromise.then(()=>{
+        if (isExisting === true) {
+          // Snap to completed state
+          fill.style.width = '100%';
+          pct.textContent = '100%';
+          // eta hidden
+          // After a short beat, navigate to chat with session + preloaded flag
+          setTimeout(()=>{ 
+            const qs = new URLSearchParams({ email: email||'', sid: chatSessionId||'', pre: firstReply? '1':'0' });
+            window.location.href = './chat.html?' + qs.toString();
+          }, 700);
+        }
+      });
+    }, 1200);
+  });
+
+  // ===== Progress Runway (vanilla adaptation) =====
+  function startLoadingAnimation(){
+    const totalSeconds = 480; // 8 minutes
+    const decelRatio = 1.35;
+    const accent = '#3DF487';
+    const intensity = 1.25;
+    const angleDeg = -20;
+    const lanes = 5;
+    const tickSpeed = 5;
+    const segDensity = 36;
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const gl = runway.getContext('webgl', { antialias:true, preserveDrawingBuffer:false }) || runway.getContext('experimental-webgl');
+    const webglOk = !!gl;
+    function resize(){
+      const { innerWidth:w=1280, innerHeight:h=720 } = window;
+      runway.width = Math.max(2, Math.floor(w * dpr));
+      runway.height = Math.max(2, Math.floor(h * dpr));
+      runway.style.width = w + 'px';
+      runway.style.height = h + 'px';
+      if (gl) gl.viewport(0,0,runway.width, runway.height);
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    const start = performance.now();
+    let forceComplete = false;
+    briefPromise.then(()=>{ forceComplete = true; });
+    function computeProgressFromTime(elapsedMs){
+      const seconds = totalSeconds;
+      const t = Math.max(0, Math.min(seconds, elapsedMs/1000));
+      const n = 10;
+      const weights = Array.from({length:n}, (_,i)=> Math.pow(decelRatio, i));
+      const sumW = weights.reduce((a,b)=>a+b,0);
+      const durations = weights.map(w=> (w/sumW) * seconds);
+      let acc = 0;
+      for(let i=0;i<n;i++){
+        const next = acc + durations[i];
+        if (t <= next || i===n-1){
+          const local = durations[i]===0 ? 0 : (t-acc)/durations[i];
+          const p = (i + local) / n;
+          return Math.max(0, Math.min(1, p));
+        }
+        acc = next;
+      }
+      return 1;
+    }
+
+    function updateBar(p){
+      const pctNum = Math.round(p*100);
+      fill.style.width = pctNum + '%';
+      pct.textContent = pctNum + '%';
+      // Hide explicit time remaining; only show percentage
+    }
+
+    // Independent real timer for the progress pane
+    const timerStart = performance.now();
+    const timerTick = ()=>{
+      const elapsed = (performance.now() - timerStart) / 1000;
+      let p = Math.min(1, elapsed / totalSeconds);
+      // If both research + chat greeting are in, finish immediately
+      if (forceComplete) p = 1;
+      updateBar(p);
+      if (p < 1) requestAnimationFrame(timerTick);
+      else {
+        const go = ()=>{
+          const qs = new URLSearchParams({ email: email||'', sid: chatSessionId||'', pre: firstReply? '1':'0' });
+          window.location.href = './chat.html?' + qs.toString();
+        };
+        setTimeout(go, 500);
+      }
+    };
+    timerTick();
+
+    let raf;
+    if (!webglOk){ diag.style.display='block'; diag.textContent='WebGL unavailable — showing fallback.'; }
+    else {
+      const vertexSrc = 'attribute vec2 a_position; void main(){ gl_Position = vec4(a_position,0.0,1.0);}';
+      const fragmentSrc = `
+        #ifdef GL_FRAGMENT_PRECISION_HIGH
+        precision highp float;
+        #else
+        precision mediump float;
+        #endif
+        precision mediump int;
+        uniform vec2 u_res; uniform float u_time; uniform float u_progress; uniform vec3 u_accent; uniform float u_intensity; uniform float u_angle; uniform float u_lanes; uniform float u_seg; uniform float u_tickSpeed;
+        mat2 rot(float a){ float s=sin(a), c=cos(a); return mat2(c,-s,s,c); }
+        float smoothTri(float x){ return abs(fract(x)-0.5); }
+        void main(){
+          vec2 uv = gl_FragCoord.xy / u_res; vec2 p = uv - 0.5; p.x *= u_res.x/u_res.y; vec2 q = rot(u_angle) * p;
+          float t = u_time; float prog = clamp(u_progress, 0.0, 1.0); float head = -0.95 + 2.30 * prog;
+          vec3 col = vec3(0.012, 0.018, 0.016);
+          float lanes = max(1.0, u_lanes); float laneMask = smoothstep(0.48, 0.46, abs(fract(q.y * lanes) - 0.5));
+          float completed = smoothstep(0.0, 0.02, head - q.x); vec3 fillc = u_accent * (0.20 + 0.65 * laneMask);
+          float seg = u_seg; float move = fract(q.x * seg - t * u_tickSpeed); float tick = smoothstep(0.015, 0.0, move) * smoothstep(0.985, 1.0, move); tick *= laneMask;
+          float band = exp(-60.0 * abs(q.x - head)); band += exp(-25.0 * abs(q.x - head - 0.015 * sin(t * 7.0)));
+          float chev = smoothstep(0.22, 0.0, abs(smoothTri(q.x * seg * 0.5) - (fract(q.y * lanes) - 0.5) * 0.65)); chev *= completed * 0.6;
+          vec3 acc = u_accent * u_intensity; col = mix(col, fillc, completed); col = max(col, acc * (band * 0.95 + tick * 0.55)); col = max(col, acc * chev * 0.35);
+          float vign = smoothstep(1.12, 0.48, length(p)); col *= vign; gl_FragColor = vec4(col, 1.0);
+        }
+      `;
+      function createShader(type, src){ const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)){ console.error(gl.getShaderInfoLog(s)); return null;} return s; }
+      const vsh = createShader(gl.VERTEX_SHADER, vertexSrc);
+      const fsh = createShader(gl.FRAGMENT_SHADER, fragmentSrc);
+      if (!vsh || !fsh){ diag.style.display='block'; diag.textContent='Shader error — fallback only.'; }
+      const prog = gl.createProgram(); gl.attachShader(prog, vsh); gl.attachShader(prog, fsh); gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)){ diag.style.display='block'; diag.textContent='Program link error — fallback only.'; }
+      gl.useProgram(prog);
+      const aPos = gl.getAttribLocation(prog, 'a_position'); const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(aPos); gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+      const U = (n)=> gl.getUniformLocation(prog, n);
+      const u_res=U('u_res'), u_time=U('u_time'), u_progress=U('u_progress'), u_accent=U('u_accent'), u_intensity=U('u_intensity'), u_angle=U('u_angle'), u_lanes=U('u_lanes'), u_seg=U('u_seg'), u_tickSpeed=U('u_tickSpeed');
+      const acc = hexToRgb(accent);
+      function draw(){
+        const elapsed = (performance.now()-start);
+        const p = forceComplete ? 1 : computeProgressFromTime(elapsed);
+        gl.uniform2f(u_res, runway.width, runway.height); gl.uniform1f(u_time, elapsed/1000);
+        gl.uniform1f(u_progress, p);
+        gl.uniform3f(u_accent, acc.r/255, acc.g/255, acc.b/255);
+        gl.uniform1f(u_intensity, intensity); gl.uniform1f(u_angle, angleDeg/180*Math.PI);
+        gl.uniform1f(u_lanes, lanes); gl.uniform1f(u_seg, segDensity); gl.uniform1f(u_tickSpeed, tickSpeed);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+        raf = requestAnimationFrame(draw);
+      }
+      draw();
+    }
+
+    function hexToRgb(hex){ const clean=(hex[0]==='#'?hex.slice(1):hex).trim(); const r=parseInt(clean.slice(0,2),16), g=parseInt(clean.slice(2,4),16), b=parseInt(clean.slice(4,6),16); return {r,g,b}; }
+  }
+
+</script>
+</body>
+</html>

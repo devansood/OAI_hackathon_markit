@@ -1,0 +1,19 @@
+# Node
+node_modules/
+.npm/
+.pnpm-store/
+.DS_Store
+# Logs
+*.log
+
+# Env
+.env
+.env.local
+
+# Build
+/dist
+/build
+/.vercel
+/.next
+
+.venv/
